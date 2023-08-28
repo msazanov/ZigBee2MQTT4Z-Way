@@ -1,0 +1,19 @@
+{
+	"m_title" : "Wiren Board MQTT Import",
+	"m_descr" : "Get wirenboard devices and control it via MQTT",
+
+	"client_id_label": "Client ID",
+	"host_label": "Hostname or IP address",
+	"port_label": "Port",
+	"user_label": "Username",
+	"user_helper": "Use 'none' for no username",
+	"password_label": "Password",
+	"password_helper": "Use 'none' for no password",
+	"topic_prefix_label": "Topic prefix",
+	"topic_postfix_set_label": "Topic postfix for setting the value",
+	"topic_postfix_set_helper": "Publish a message to the set-topic of a device to set it's value",
+	"precision_label": "Sensor value precision",
+	"precision_helper": "Set fractional value for WirenBoard web interface",
+	"debug_label": "Debug",
+	"debug_helper": "Enable or disable extended debug output"
+}
