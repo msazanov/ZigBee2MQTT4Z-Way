@@ -25,11 +25,11 @@ WBMQTTImport.prototype.log = function (message, level) {
 
 	if (undefined === message) return;
 	switch (level) {
-		case LoggingLevel.DEBUG:
+		case WBMQTTImport.LoggingLevel.DEBUG:
 			if (!self.config.debug) {
 				return;
 			}
-		case LoggingLevel.INFO:
+		case WBMQTTImport.LoggingLevel.INFO:
 			console.log('[' + this.constructor.name + '-' + this.id + '] ' + message);
 			break;
 		default:
@@ -79,7 +79,7 @@ WBMQTTImport.prototype.stop = function () {
 	var self = this;
 
 	// Cleanup
-	this.state = ModuleState.DISCONNECTING;
+	this.state = WBMQTTImport.LoggingLevel.DISCONNECTING;
 	this.client.disconnect();
 	this.removeReconnectionAttempt();
 
@@ -101,10 +101,10 @@ WBMQTTImport.prototype.connectionAttempt = function () {
 	var self = this;
 
 	try {
-		self.state = ModuleState.CONNECTING;
+		self.state = WBMQTTImport.LoggingLevel.CONNECTING;
 		self.client.connect();
 	} catch (exception) {
-		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, LoggingLevel.INFO);
+		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
 		self.reconnectionAttempt();
 	}
 }
@@ -113,7 +113,7 @@ WBMQTTImport.prototype.reconnectionAttempt = function () {
 	var self = this;
 
 	self.reconnect_timer = setTimeout(function () {
-		self.log("Trying to reconnect (" + self.reconnectCount + ")", LoggingLevel.INFO);
+		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.LoggingLevel.INFO);
 		self.reconnectCount++;
 		self.connectionAttempt();
 	}, Math.min(self.reconnectCount * 1000, 60000));
@@ -131,9 +131,9 @@ WBMQTTImport.prototype.removeReconnectionAttempt = function () {
 
 WBMQTTImport.prototype.onConnect = function () {
 	var self = this;
-	self.log("Connected to " + self.config.host + " as " + self.config.clientId, LoggingLevel.INFO);
+	self.log("Connected to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
 
-	self.state = ModuleState.CONNECTED
+	self.state = WBMQTTImport.LoggingLevel.CONNECTED
 	self.reconnectCount = 0;
 
 	self.client.subscribe("#");
@@ -142,12 +142,12 @@ WBMQTTImport.prototype.onConnect = function () {
 WBMQTTImport.prototype.onDisconnect = function () {
 	var self = this;
 
-	if (self.state == ModuleState.DISCONNECTING) {
-		self.log("Disconnected due to module stop, not reconnecting", LoggingLevel.INFO);
+	if (self.state == WBMQTTImport.LoggingLevel.DISCONNECTING) {
+		self.log("Disconnected due to module stop, not reconnecting", WBMQTTImport.LoggingLevel.INFO);
 		return;
 	}
 
-	self.state == ModuleState.DISCONNECTED
+	self.state == WBMQTTImport.LoggingLevel.DISCONNECTED
 	self.error("Disconnected, will retry to connect...");
 	self.reconnectionAttempt();
 };
@@ -155,7 +155,7 @@ WBMQTTImport.prototype.onDisconnect = function () {
 WBMQTTImport.prototype.onMessage = function (topic, payload) {
 	var self = this;
 	var payload = byteArrayToString(payload);
-	self.log("New message topic" + topic + " payload " + payload, LoggingLevel.DEBUG);
+	self.log("New message topic" + topic + " payload " + payload, WBMQTTImport.LoggingLevel.DEBUG);
 
 	var path = topic.split("/");
 	path.shift(); // Remove first empty element
@@ -164,14 +164,23 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 		self.topicTree[path[0]] = {}
 	}
 
-	var deviceId = "WB" + topic.replace(/\//g, "_") + "_" + this.id;
+
+
+	/*
+	TODO
+	Если пятый мета, то создаем вдев
+	Если не мета, то обновляем
+	Заменить пробелы и / на _
+	Положить max в metrics
+	*/
+	var deviceId = this.getName() + "_" + this.id + "_" + topic.replace(/\//g, "_") ;
 	var pathObject = self.topicTree[path[0]] // Хранит текущее место
 	for (var i = 1; i < path.length; i++) {
 		// Last element add payload
 		if (i == path.length - 1) {
 			// Update payload
 			pathObject[path[i]] = {value: payload};
-			self.updateVDev(deviceId, payload)
+			self.updateVDev(deviceId, payload) // Если meta, то не делаем
 			// If meta data of device, create vDev without meta
 			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta") {
 				if (path[1] == "knx" || path[1] == "buzzer" || path[1] == "power_status" || path[1] == "wb-adc" || path[1] == "wb-gpio" ||  path[1] == "wb-w1") {
@@ -180,8 +189,9 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 					// Remove meta from path
 					deviceId = deviceId.replace("_meta", "");
 					topic = topic.replace("/meta", "");
+					var maxLevel = meta.max ? meta.max : 0;
 					self.generated.push(deviceId);
-					self.createVDev(deviceId, path[1] + "/" + path[3], meta.type, meta.readonly, self.topicTree[path[0]][path[1]][path[2]][path[3]].value, topic);
+					self.createVDev(deviceId, path[1] + "/" + path[3], meta.type, meta.readonly, self.topicTree[path[0]][path[1]][path[2]][path[3]].value, maxLevel, topic);
 				}
 			}
 		}
@@ -198,12 +208,12 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 WBMQTTImport.prototype.publish = function (topic, value, retained) {
 	var self = this;
 
-	if (self.client && self.state == ModuleState.CONNECTED) {
+	if (self.client && self.state == WBMQTTImport.LoggingLevel.CONNECTED) {
 		self.client.publish(topic, value.toString().trim(), retained);
 	}
 };
 
-WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, level, topic) {
+WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, level, maxLevel, topic) {
 	var self = this,
 		deviceType = "",
 		scaleTitle = "",
@@ -216,12 +226,21 @@ WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, le
 			probeType = "energy";
 			scaleTitle = "V";
 			icon = "energy";
+			level = parseFloat(level)
 			break;
 		case "switch":
 			deviceType = readonly ? "sensorBinary" : "switchBinary";
 			probeType = readonly ? "general_purpose" : "switch";
 			icon = "switch";
 			level = level == "1" ? "on" : "off"
+			break;
+		case "range":
+			deviceType = "switchMultilevel";
+			icon = "multilevel";
+			level = parseInt((level * 99) / maxLevel);
+			break;
+		default:
+			icon = "multilevel";
 			break;
 	}
 
@@ -241,6 +260,10 @@ WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, le
 			}	  
 	};
 
+	if (deviceType == "switchMultilevel") {
+		overlay.metrics.maxLevel = maxLevel;
+	}
+
 	var vDev = self.controller.devices.create({
 		deviceId: deviceId,
 		defaults: defaults,
@@ -258,7 +281,7 @@ WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, le
 
 			if ((command === "off" || command === "on" || command === "exact") && vDevType === "switchMultilevel") {
 				var level = command === "exact" ? parseInt(args.level, 10) : (command === "on" ? 99 : 0);
-				self.publish(this.get("metrics:mqttTopic") + "/on", level);
+				self.publish(this.get("metrics:mqttTopic") + "/on", parseInt((maxLevel * level) / 99));
 			}
 		},
 		moduleId: this.id
@@ -266,12 +289,16 @@ WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, le
 }
 
 WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
+	var self = this;
 	var vDev = this.controller.devices.get(deviceId);
 	if (vDev) {
 		switch(vDev.get("deviceType")) {
 		case "switchBinary":
 		case "sensorBinary":
 			vDev.set("metrics:level", level == "1" ? "on" : "off");
+			break;
+		case "switchMultilevel":
+			vDev.set("metrics:level", parseInt((level * 99) / vDev.get("metrics:maxLevel")));
 			break;
 		default:
 			vDev.set("metrics:level", level);
@@ -284,12 +311,12 @@ WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
 // --- Device types enum
 // ----------------------------------------------------------------------------
 
-const LoggingLevel = Object.freeze({
+WBMQTTImport.LoggingLevel = Object.freeze({
 	INFO: "INFO",
 	DEBUG: "DEBUG"
 });
 
-const ModuleState = Object.freeze({
+WBMQTTImport.LoggingLevel = Object.freeze({
 	CONNECTING: "CONNECTING",
 	CONNECTED: "CONNECTED",
 	DISCONNECTING: "DISCONNECTING",
