@@ -283,6 +283,8 @@ WBMQTTImport.prototype.publish = function (topic, value, retained) {
 };
 
 WBMQTTImport.prototype.createVDev = function (dev) {
+	if (this.controller.devices.get(dev.deviceId)) return;
+
 	var self = this,
 		deviceType = "",
 		scaleTitle = "",
