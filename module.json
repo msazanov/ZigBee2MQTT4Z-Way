@@ -11,7 +11,7 @@
 		"password": "none",
 		"enabledMQTTDevicesArray": [],
 
-		"debug":true
+		"debug":false
 	},
 	"homepage": "z-wave.me",
 	"icon": "icon.png",

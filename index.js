@@ -57,6 +57,11 @@ WBMQTTImport.prototype.init = function (config) {
 		self.config.mqttDevices = {};
 	}
 
+	// Array of all known devices
+	if (!self.config.allKnownDevicesArray) {
+		self.config.allKnownDevicesArray = [];
+	}
+
 	// If enabledMQTTDevicesArray doesn't contain an vDevId, then remove it from the mqttDevices
 	Object.keys(self.config.mqttDevices).forEach(function(vDevId) {
 		if (self.config.enabledMQTTDevicesArray.indexOf(vDevId) == -1) {
@@ -96,9 +101,14 @@ WBMQTTImport.prototype.stop = function () {
 	var self = this;
 
 	// Cleanup
-	this.state = WBMQTTImport.LoggingLevel.DISCONNECTING;
+	this.state = WBMQTTImport.ModuleState.DISCONNECTING;
 	this.client.disconnect();
 	this.removeReconnectionAttempt();
+
+	// Remove all vDevs
+	this.config.enabledMQTTDevicesArray.forEach(function(vDevId) {
+		self.controller.devices.remove(vDevId);
+	});
 
 	WBMQTTImport.super_.prototype.stop.call(this);
 };
@@ -110,10 +120,10 @@ WBMQTTImport.prototype.connectionAttempt = function () {
 	var self = this;
 
 	try {
-		self.state = WBMQTTImport.LoggingLevel.CONNECTING;
+		self.state = WBMQTTImport.ModuleState.CONNECTING;
 		self.client.connect();
 	} catch (exception) {
-		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
+		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.ModuleState.INFO);
 		self.reconnectionAttempt();
 	}
 }
@@ -122,7 +132,7 @@ WBMQTTImport.prototype.reconnectionAttempt = function () {
 	var self = this;
 
 	self.reconnect_timer = setTimeout(function () {
-		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.LoggingLevel.INFO);
+		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.ModuleState.INFO);
 		self.reconnectCount++;
 		self.connectionAttempt();
 
@@ -151,9 +161,9 @@ WBMQTTImport.prototype.removeReconnectionAttempt = function () {
 
 WBMQTTImport.prototype.onConnect = function () {
 	var self = this;
-	self.log("Connected to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
+	self.log("Connected to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.ModuleState.INFO);
 
-	self.state = WBMQTTImport.LoggingLevel.CONNECTED
+	self.state = WBMQTTImport.ModuleState.CONNECTED
 	self.reconnectCount = 0;
 
 	// Make all vDevs alive
@@ -170,12 +180,12 @@ WBMQTTImport.prototype.onConnect = function () {
 WBMQTTImport.prototype.onDisconnect = function () {
 	var self = this;
 
-	if (self.state == WBMQTTImport.LoggingLevel.DISCONNECTING) {
-		self.log("Disconnected due to module stop, not reconnecting", WBMQTTImport.LoggingLevel.INFO);
+	if (self.state == WBMQTTImport.ModuleState.DISCONNECTING) {
+		self.log("Disconnected due to module stop, not reconnecting", WBMQTTImport.ModuleState.INFO);
 		return;
 	}
 
-	self.state == WBMQTTImport.LoggingLevel.DISCONNECTED
+	self.state == WBMQTTImport.ModuleState.DISCONNECTED
 	self.error("Disconnected, will retry to connect...");
 	self.reconnectionAttempt();
 };
@@ -183,7 +193,7 @@ WBMQTTImport.prototype.onDisconnect = function () {
 WBMQTTImport.prototype.onMessage = function (topic, payload) {
 	var self = this;
 	var payload = byteArrayToString(payload);
-	self.log("New message topic" + topic + " payload " + payload, WBMQTTImport.LoggingLevel.DEBUG);
+	self.log("New message topic" + topic + " payload " + payload, WBMQTTImport.ModuleState.DEBUG);
 
 	var path = topic.split("/");
 	path.shift(); // Remove first empty element
@@ -192,8 +202,8 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 		self.topicTree[path[0]] = {}
 	}
 
-	var deviceId = (this.getName() + "_" + this.id + "_" + topic.replace(/\/| /g, "_")).replace(/__/g, "_");
-	var pathObject = self.topicTree[path[0]] // Хранит текущее место
+	var deviceId = (this.getName() + "_" + this.id + "_" + path[1] + "_" + path[2] + "_" + path[3]).replace(/__/g, "_").replace(/ /g, "_");
+	var pathObject = self.topicTree[path[0]]
 	for (var i = 1; i < path.length; i++) {
 		// Last element add payload
 		if (i == path.length - 1) {
@@ -204,7 +214,7 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta" && path[1] != "zway") {
 
 				// Add subsystem section
-				var subSystemID = "__" + path[1];
+				var subSystemID = (this.getName() + "_" + this.id + "_" + path[1]).replace(/__/g, "_") + "__";
 				if (!(self.containsDevice(subSystemID, self.devicesList))) {
 					self.devicesList.push({deviceId: subSystemID, deviceName: path[1]})
 				}
@@ -214,10 +224,26 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 
 				deviceId = deviceId.replace("_meta", "");
 				topic = topic.replace("/meta", ""); // remove meta from topic path
-				
+
 				// Add {ID:NAME} to array of all mqtt devices
 				if (!(self.containsDevice(deviceId, self.devicesList))) {
-					self.devicesList.push({deviceId: deviceId, deviceName: ". . . . " + path[3]});
+
+					// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
+					if (self.config.allKnownDevicesArray.indexOf(deviceId) == -1) {
+						self.config.allKnownDevicesArray.push(deviceId);
+						self.config.enabledMQTTDevicesArray.push(deviceId);
+					}
+
+					self.devicesList.push({deviceId: deviceId, deviceName: path[3]});
+
+					// Sort devicesList by alphabet to show in UI
+					self.devicesList.sort(function(a, b){
+						var nameA = a.deviceId.toLowerCase(), nameB = b.deviceId.toLowerCase();
+						if (nameA < nameB) {return -1;}
+						if (nameA > nameB) {return 1;}
+						return 0
+					});
+
 					self.controller.setNamespace("wbmqttimport", self.controller.namespaces, self.devicesList);
 
 					// Generate vDev if device in enabledMQTTDevicesArray
@@ -232,8 +258,8 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 							maxLevel: maxLevel,
 							topic: topic,
 						};
-						self.createVDev(self.config.mqttDevices[deviceId]);
 						self.saveConfig();
+						self.createVDev(self.config.mqttDevices[deviceId]);
 					}
 				}
 			}
@@ -251,7 +277,7 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 WBMQTTImport.prototype.publish = function (topic, value, retained) {
 	var self = this;
 
-	if (self.client && self.state == WBMQTTImport.LoggingLevel.CONNECTED) {
+	if (self.client && self.state == WBMQTTImport.ModuleState.CONNECTED) {
 		self.client.publish(topic, value.toString().trim(), retained);
 	}
 };
@@ -401,7 +427,7 @@ WBMQTTImport.LoggingLevel = Object.freeze({
 	DEBUG: "DEBUG"
 });
 
-WBMQTTImport.LoggingLevel = Object.freeze({
+WBMQTTImport.ModuleState = Object.freeze({
 	CONNECTING: "CONNECTING",
 	CONNECTED: "CONNECTED",
 	DISCONNECTING: "DISCONNECTING",
