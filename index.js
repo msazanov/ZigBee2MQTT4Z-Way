@@ -50,12 +50,29 @@ WBMQTTImport.prototype.error = function (message) {
 WBMQTTImport.prototype.init = function (config) {
 	// Call superclass' init (this will process config argument and so on)
 	WBMQTTImport.super_.prototype.init.call(this, config);
-
 	var self = this;
 
+	// Contain vDevs to generate
+	if (!self.config.mqttDevices) {
+		self.config.mqttDevices = {};
+	}
+
+	// If enabledMQTTDevicesArray doesn't contain an vDevId, then remove it from the mqttDevices
+	Object.keys(self.config.mqttDevices).forEach(function(vDevId) {
+		if (self.config.enabledMQTTDevicesArray.indexOf(vDevId) == -1) {
+			delete self.config.mqttDevices[vDevId];
+		}
+		// Create vDevs at start
+		else {
+			self.createVDev(self.config.mqttDevices[vDevId]);
+		}
+	});
+	self.saveConfig();
+	
+	// Array of all mqtt devices placed in namespaces to show in web ui
 	self.devicesList = [];
+
 	self.topicTree = {};
-	self.generated = [];
 
 	// Defaults
 	self.reconnectCount = 0;
@@ -83,14 +100,6 @@ WBMQTTImport.prototype.stop = function () {
 	this.client.disconnect();
 	this.removeReconnectionAttempt();
 
-	// remove devices
-	if (this.generated) {
-		this.generated.forEach(function(name) {
-			self.controller.devices.remove(name);
-		});
-		this.generated = [];
-	}
-
 	WBMQTTImport.super_.prototype.stop.call(this);
 };
 
@@ -116,6 +125,17 @@ WBMQTTImport.prototype.reconnectionAttempt = function () {
 		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.LoggingLevel.INFO);
 		self.reconnectCount++;
 		self.connectionAttempt();
+
+		// After 3 attempts make all devices broken
+		if (self.reconnectCount === 2) {
+			self.config.enabledMQTTDevicesArray.forEach(function(vDevId) {
+				var vDev = self.controller.devices.get(vDevId);
+				if (vDev) {
+					vDev.set("metrics:isFailed", true);
+				}
+			});
+		}
+
 	}, Math.min(self.reconnectCount * 1000, 60000));
 }
 
@@ -135,6 +155,14 @@ WBMQTTImport.prototype.onConnect = function () {
 
 	self.state = WBMQTTImport.LoggingLevel.CONNECTED
 	self.reconnectCount = 0;
+
+	// Make all vDevs alive
+	self.config.enabledMQTTDevicesArray.forEach(function(vDevId) {
+		var vDev = self.controller.devices.get(vDevId);
+		if (vDev) {
+			vDev.set("metrics:isFailed", false);
+		}
+	});
 
 	self.client.subscribe("#");
 }
@@ -164,34 +192,49 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 		self.topicTree[path[0]] = {}
 	}
 
-
-
-	/*
-	TODO
-	Если пятый мета, то создаем вдев
-	Если не мета, то обновляем
-	Заменить пробелы и / на _
-	Положить max в metrics
-	*/
-	var deviceId = this.getName() + "_" + this.id + "_" + topic.replace(/\//g, "_") ;
+	var deviceId = (this.getName() + "_" + this.id + "_" + topic.replace(/\/| /g, "_")).replace(/__/g, "_");
 	var pathObject = self.topicTree[path[0]] // Хранит текущее место
 	for (var i = 1; i < path.length; i++) {
 		// Last element add payload
 		if (i == path.length - 1) {
 			// Update payload
 			pathObject[path[i]] = {value: payload};
-			self.updateVDev(deviceId, payload) // Если meta, то не делаем
-			// If meta data of device, create vDev without meta
-			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta") {
-				if (path[1] == "knx" || path[1] == "buzzer" || path[1] == "power_status" || path[1] == "wb-adc" || path[1] == "wb-gpio" ||  path[1] == "wb-w1") {
-					var meta = JSON.parse(payload);
+			self.updateVDev(deviceId, payload);
+			// If topic with meta, create vDev
+			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta" && path[1] != "zway") {
 
-					// Remove meta from path
-					deviceId = deviceId.replace("_meta", "");
-					topic = topic.replace("/meta", "");
-					var maxLevel = meta.max ? meta.max : 0;
-					self.generated.push(deviceId);
-					self.createVDev(deviceId, path[1] + "/" + path[3], meta.type, meta.readonly, self.topicTree[path[0]][path[1]][path[2]][path[3]].value, maxLevel, topic);
+				// Add subsystem section
+				var subSystemID = "__" + path[1];
+				if (!(self.containsDevice(subSystemID, self.devicesList))) {
+					self.devicesList.push({deviceId: subSystemID, deviceName: path[1]})
+				}
+
+				var meta = JSON.parse(payload);
+				var maxLevel = meta.max ? meta.max : 0;
+
+				deviceId = deviceId.replace("_meta", "");
+				topic = topic.replace("/meta", ""); // remove meta from topic path
+				
+				// Add {ID:NAME} to array of all mqtt devices
+				if (!(self.containsDevice(deviceId, self.devicesList))) {
+					self.devicesList.push({deviceId: deviceId, deviceName: ". . . . " + path[3]});
+					self.controller.setNamespace("wbmqttimport", self.controller.namespaces, self.devicesList);
+
+					// Generate vDev if device in enabledMQTTDevicesArray
+					if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) != -1) {
+						// Add device to list in config
+						self.config.mqttDevices[deviceId] = {
+							deviceId: deviceId,
+							name: path[1] + "/" + path[3],
+							type: meta.type,
+							readonly: meta.readonly,
+							level: self.topicTree[path[0]][path[1]][path[2]][path[3]].value,
+							maxLevel: maxLevel,
+							topic: topic,
+						};
+						self.createVDev(self.config.mqttDevices[deviceId]);
+						self.saveConfig();
+					}
 				}
 			}
 		}
@@ -213,40 +256,70 @@ WBMQTTImport.prototype.publish = function (topic, value, retained) {
 	}
 };
 
-WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, level, maxLevel, topic) {
+WBMQTTImport.prototype.createVDev = function (dev) {
 	var self = this,
 		deviceType = "",
 		scaleTitle = "",
 		probeType = "",
 		icon = "";
 
-	switch(type) {
+	switch(dev.type) {
+		case "rel_humidity":
+			deviceType = "sensorMultilevel";
+			probeType = "humidity";
+			scaleTitle = "°%";
+			icon = "humidity";
+			level = parseFloat(dev.level)
+			break;
+		case "temperature":
+			deviceType = "sensorMultilevel";
+			probeType = "temperature";
+			scaleTitle = "°C";
+			icon = "temperature";
+			level = parseFloat(dev.level)
+			break;
 		case "voltage":
 			deviceType = "sensorMultilevel";
 			probeType = "energy";
 			scaleTitle = "V";
 			icon = "energy";
-			level = parseFloat(level)
+			level = parseFloat(dev.level)
+			break;
+		case "power":
+			deviceType = "sensorMultilevel";
+			probeType = "energy";
+			scaleTitle = "W";
+			icon = "energy";
+			level = parseFloat(dev.level)
+			break;
+		case "power_consumption":
+			deviceType = "sensorMultilevel";
+			probeType = "meter";
+			scaleTitle = "kWh";
+			icon = "energy";
+			level = parseFloat(dev.level)
 			break;
 		case "switch":
-			deviceType = readonly ? "sensorBinary" : "switchBinary";
-			probeType = readonly ? "general_purpose" : "switch";
+			deviceType = dev.readonly ? "sensorBinary" : "switchBinary";
+			probeType = dev.readonly ? "general_purpose" : "switch";
 			icon = "switch";
-			level = level == "1" ? "on" : "off"
+			level = dev.level == "1" ? "on" : "off"
 			break;
 		case "range":
 			deviceType = "switchMultilevel";
 			icon = "multilevel";
-			level = parseInt((level * 99) / maxLevel);
+			level = parseInt((dev.level * 99) / dev.maxLevel);
 			break;
 		default:
-			icon = "multilevel";
+			deviceType = "sensorMultilevel";
+			icon = "meter"
+			level = parseFloat(dev.level)
 			break;
 	}
 
 	var defaults = {
 		metrics: {
-			title: name
+			title: dev.name
 		}
 	};
 
@@ -256,16 +329,17 @@ WBMQTTImport.prototype.createVDev = function (deviceId, name, type, readonly, le
 			metrics: {
 				icon: icon,
 				level: level,
-				mqttTopic: topic,
+				isFailed: false,
+				mqttTopic: dev.topic,
 			}	  
 	};
 
 	if (deviceType == "switchMultilevel") {
-		overlay.metrics.maxLevel = maxLevel;
+		overlay.metrics.maxLevel = dev.maxLevel;
 	}
 
 	var vDev = self.controller.devices.create({
-		deviceId: deviceId,
+		deviceId: dev.deviceId,
 		defaults: defaults,
 		overlay: overlay,
 		handler: function (command, args) {
@@ -306,6 +380,17 @@ WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------------
+// --- Utility methods
+// ----------------------------------------------------------------------------
+WBMQTTImport.prototype.containsDevice = function (deviceId, array) {
+	for (var i = 0; i < array.length; i++) {
+		if (deviceId === array[i].deviceId) {return true;}
+	}
+
+	return false;
+};
 
 // ----------------------------------------------------------------------------
 // --- Device types enum

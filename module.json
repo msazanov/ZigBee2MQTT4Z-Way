@@ -9,42 +9,19 @@
 		"port": "1883",
 		"user": "none",
 		"password": "none",
+		"enabledMQTTDevicesArray": [],
+
 		"debug":true
 	},
 	"homepage": "z-wave.me",
 	"icon": "icon.png",
 	"maturity": "stable",
 	"moduleName": "WBMQTTImport",
-	"singleton": false,
+	"singleton": true,
 	"version": "1.0.0",
 	"repository": {
 		"source": "https://github.com/Z-Wave-Me/WBMQTTImport",
 		"type": "git"
-	},
-	"options": {
-		"fields": {
-			"clientId": {
-				"label": "__client_id_label__"
-			},
-			"host": {
-				"label": "__host_label__"
-			},
-			"port": {
-				"label": "__port_label__"
-			},
-			"user": {
-				"label": "__user_label__",
-				"helper": "__user_helper__"
-			},
-			"password": {
-				"label": "__password_label__",
-				"helper": "__password_helper__"
-			},			
-			"debug": {
-				"label": "__debug_label__",
-				"helper": "__debug_helper__"
-			}
-		}
 	},
 	"schema": {
 		"type": "object",
@@ -69,10 +46,50 @@
 			"password": {
 				"type": "string",
 				"required": false
-			},
+			},			
+			"enabledMQTTDevicesArray" : {
+                "type": "array",
+                "field": "enum",
+                "datasource": "namespaces",
+                "enum": "namespaces:wbmqttimport:deviceId",
+                "required": false
+            },
 			"debug":{
 				"type": "boolean",
 				"required": true
+			}
+		}
+	},
+	"options": {
+		"fields": {
+			"clientId": {
+				"label": "__client_id_label__"
+			},
+			"host": {
+				"label": "__host_label__"
+			},
+			"port": {
+				"label": "__port_label__"
+			},
+			"user": {
+				"label": "__user_label__",
+				"helper": "__user_helper__"
+			},
+			"password": {
+				"label": "__password_label__",
+				"helper": "__password_helper__"
+			},
+			"enabledMQTTDevicesArray": {
+                "label": "__mqttDevices_label__",
+                "helper": "__mqttDevices_helper__",
+                "type": "checkbox",
+                "datasource": "namespaces",
+                "field": "optionLabels",
+                "optionLabels": "namespaces:wbmqttimport:deviceName"
+            },
+			"debug": {
+				"label": "__debug_label__",
+				"helper": "__debug_helper__"
 			}
 		}
 	}
