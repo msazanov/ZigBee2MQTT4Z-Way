@@ -123,7 +123,7 @@ WBMQTTImport.prototype.connectionAttempt = function () {
 		self.state = WBMQTTImport.ModuleState.CONNECTING;
 		self.client.connect();
 	} catch (exception) {
-		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.ModuleState.INFO);
+		self.log("MQTT connection error to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
 		self.reconnectionAttempt();
 	}
 }
@@ -132,7 +132,7 @@ WBMQTTImport.prototype.reconnectionAttempt = function () {
 	var self = this;
 
 	self.reconnect_timer = setTimeout(function () {
-		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.ModuleState.INFO);
+		self.log("Trying to reconnect (" + self.reconnectCount + ")", WBMQTTImport.LoggingLevel.INFO);
 		self.reconnectCount++;
 		self.connectionAttempt();
 
@@ -161,7 +161,7 @@ WBMQTTImport.prototype.removeReconnectionAttempt = function () {
 
 WBMQTTImport.prototype.onConnect = function () {
 	var self = this;
-	self.log("Connected to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.ModuleState.INFO);
+	self.log("Connected to " + self.config.host + " as " + self.config.clientId, WBMQTTImport.LoggingLevel.INFO);
 
 	self.state = WBMQTTImport.ModuleState.CONNECTED
 	self.reconnectCount = 0;
@@ -181,7 +181,7 @@ WBMQTTImport.prototype.onDisconnect = function () {
 	var self = this;
 
 	if (self.state == WBMQTTImport.ModuleState.DISCONNECTING) {
-		self.log("Disconnected due to module stop, not reconnecting", WBMQTTImport.ModuleState.INFO);
+		self.log("Disconnected due to module stop, not reconnecting", WBMQTTImport.LoggingLevel.INFO);
 		return;
 	}
 
@@ -193,7 +193,7 @@ WBMQTTImport.prototype.onDisconnect = function () {
 WBMQTTImport.prototype.onMessage = function (topic, payload) {
 	var self = this;
 	var payload = byteArrayToString(payload);
-	self.log("New message topic" + topic + " payload " + payload, WBMQTTImport.ModuleState.DEBUG);
+	self.log("New message topic" + topic + " payload " + payload, WBMQTTImport.LoggingLevel.DEBUG);
 
 	var path = topic.split("/");
 	path.shift(); // Remove first empty element
