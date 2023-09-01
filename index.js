@@ -330,6 +330,9 @@ WBMQTTImport.prototype.createVDev = function (dev) {
 			icon = "multilevel";
 			level = parseInt((dev.level * 99) / dev.maxLevel);
 			break;
+		case "text":
+		case "pushbutton":
+			return; // skip text topics
 		default:
 			deviceType = "sensorMultilevel";
 			icon = "meter"
@@ -380,6 +383,8 @@ WBMQTTImport.prototype.createVDev = function (dev) {
 		},
 		moduleId: this.id
 	});
+	
+	return true;
 }
 
 WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
