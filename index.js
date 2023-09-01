@@ -64,7 +64,7 @@ WBMQTTImport.prototype.init = function (config) {
 
 	// If enabledMQTTDevicesArray doesn't contain an vDevId, then remove it from the mqttDevices
 	Object.keys(self.config.mqttDevices).forEach(function(vDevId) {
-		if (self.config.enabledMQTTDevicesArray.indexOf(vDevId) == -1) {
+		if (self.config.enabledMQTTDevicesArray.indexOf(vDevId) === -1) {
 			delete self.config.mqttDevices[vDevId];
 		}
 		// Create vDevs at start
@@ -352,14 +352,14 @@ WBMQTTImport.prototype.createVDev = function (dev) {
 	};
 
 	var overlay = {
-			deviceType: deviceType,
-			probeType: probeType,
-			metrics: {
-				icon: icon,
-				level: level,
-				isFailed: false,
-				mqttTopic: dev.topic,
-			}	  
+		deviceType: deviceType,
+		probeType: probeType,
+		metrics: {
+			icon: icon,
+			level: level,
+			isFailed: false,
+			mqttTopic: dev.topic,
+		}	  
 	};
 
 	if (deviceType == "switchMultilevel") {
@@ -414,7 +414,7 @@ WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
 // ----------------------------------------------------------------------------
 WBMQTTImport.prototype.containsDevice = function (deviceId, array) {
 	for (var i = 0; i < array.length; i++) {
-		if (deviceId === array[i].deviceId) {return true;}
+		if (deviceId === array[i].deviceId) return true;
 	}
 
 	return false;

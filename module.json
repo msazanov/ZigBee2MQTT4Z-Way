@@ -48,12 +48,12 @@
 				"required": false
 			},			
 			"enabledMQTTDevicesArray" : {
-                "type": "array",
-                "field": "enum",
-                "datasource": "namespaces",
-                "enum": "namespaces:wbmqttimport:deviceId",
-                "required": false
-            },
+				"type": "array",
+				"field": "enum",
+				"datasource": "namespaces",
+				"enum": "namespaces:wbmqttimport:deviceId",
+				"required": false
+			},
 			"debug":{
 				"type": "boolean",
 				"required": true
@@ -80,13 +80,13 @@
 				"helper": "__password_helper__"
 			},
 			"enabledMQTTDevicesArray": {
-                "label": "__mqttDevices_label__",
-                "helper": "__mqttDevices_helper__",
-                "type": "checkbox",
-                "datasource": "namespaces",
-                "field": "optionLabels",
-                "optionLabels": "namespaces:wbmqttimport:deviceName"
-            },
+				"label": "__mqttDevices_label__",
+				"helper": "__mqttDevices_helper__",
+				"type": "checkbox",
+				"datasource": "namespaces",
+				"field": "optionLabels",
+				"optionLabels": "namespaces:wbmqttimport:deviceName"
+			},
 			"debug": {
 				"label": "__debug_label__",
 				"helper": "__debug_helper__"
