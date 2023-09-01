@@ -236,15 +236,7 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 
 					self.devicesList.push({deviceId: deviceId, deviceName: path[3]});
 
-					// Sort devicesList by alphabet to show in UI
-					self.devicesList.sort(function(a, b){
-						var nameA = a.deviceId.toLowerCase(), nameB = b.deviceId.toLowerCase();
-						if (nameA < nameB) {return -1;}
-						if (nameA > nameB) {return 1;}
-						return 0
-					});
-
-					self.controller.setNamespace("wbmqttimport", self.controller.namespaces, self.devicesList);
+					self.updateNamespace();
 
 					// Generate vDev if device in enabledMQTTDevicesArray
 					if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) != -1) {
@@ -407,6 +399,18 @@ WBMQTTImport.prototype.updateVDev = function (deviceId, level) {
 			break;
 		}
 	}
+}
+
+WBMQTTImport.prototype.updateNamespace = function() {
+	// Sort devicesList by alphabet to show in UI
+	this.devicesList.sort(function(a, b){
+		var nameA = a.deviceId.toLowerCase(), nameB = b.deviceId.toLowerCase();
+		if (nameA < nameB) return -1;
+		if (nameA > nameB) return 1;
+		return 0;
+	});
+
+	this.controller.setNamespace("wbmqttimport", this.controller.namespaces, this.devicesList);
 }
 
 // ----------------------------------------------------------------------------
