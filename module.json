@@ -92,5 +92,6 @@
 				"helper": "__debug_helper__"
 			}
 		}
-	}
+	},
+	"postRender": "loadFunction:postRender.js"
 }
