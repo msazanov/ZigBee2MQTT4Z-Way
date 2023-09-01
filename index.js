@@ -222,6 +222,12 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 				self.devicesList.push({deviceId: subSystemID, deviceName: path[1]})
 			}
 
+			if (!self.topicTree["devices"][path[1]]["controls"][path[3]]) {
+				self.topicTree["devices"][path[1]]["controls"][path[3]] = {
+					value: null
+				};
+			}
+
 			var meta = JSON.parse(payload);
 			var maxLevel = meta.max ? meta.max : undefined;
 
@@ -243,7 +249,7 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 						name: path[1] + "/" + path[3],
 						type: meta.type,
 						readonly: meta.readonly,
-						level: self.topicTree[path[0]][path[1]][path[2]][path[3]].value,
+						level: self.topicTree["devices"][path[1]]["controls"][path[3]].value,
 						maxLevel: maxLevel,
 						topic: topic,
 					};
