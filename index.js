@@ -227,19 +227,15 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 
 				// Add {ID:NAME} to array of all mqtt devices
 				if (!(self.containsDevice(deviceId, self.devicesList))) {
-
-					// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
-					if (self.config.allKnownDevicesArray.indexOf(deviceId) == -1) {
-						self.config.allKnownDevicesArray.push(deviceId);
-						self.config.enabledMQTTDevicesArray.push(deviceId);
-					}
-
+				
 					self.devicesList.push({deviceId: deviceId, deviceName: path[3]});
 
 					self.updateNamespace();
 
-					// Generate vDev if device in enabledMQTTDevicesArray
-					if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) != -1) {
+					// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
+					if (self.config.allKnownDevicesArray.indexOf(deviceId) === -1) {
+						self.config.allKnownDevicesArray.push(deviceId);
+						
 						// Add device to list in config
 						self.config.mqttDevices[deviceId] = {
 							deviceId: deviceId,
@@ -250,8 +246,18 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 							maxLevel: maxLevel,
 							topic: topic,
 						};
+						
+						if (self.createVDev(self.config.mqttDevices[deviceId])) {
+							// set the checkbox only if the device was created (meas it is supported)
+							self.config.enabledMQTTDevicesArray.push(deviceId);
+						}
+						
 						self.saveConfig();
-						self.createVDev(self.config.mqttDevices[deviceId]);
+					} else {
+						// Generate vDev if device in enabledMQTTDevicesArray
+						if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) !== -1) {
+							self.createVDev(self.config.mqttDevices[deviceId]);
+						}
 					}
 				}
 			}
