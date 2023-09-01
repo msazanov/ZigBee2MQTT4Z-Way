@@ -211,7 +211,7 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 			pathObject[path[i]] = {value: payload};
 			self.updateVDev(deviceId, payload);
 			// If topic with meta, create vDev
-			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta" && path[1] != "zway") {
+			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta" && path[1].substr(0, 4) != "zway") {
 
 				// Add subsystem section
 				var subSystemID = (this.getName() + "_" + this.id + "_" + path[1]).replace(/__/g, "_") + "__";
