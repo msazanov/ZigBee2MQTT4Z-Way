@@ -388,7 +388,7 @@ WBMQTTImport.prototype.createVDev = function (dev) {
 
 			if ((command === "off" || command === "on" || command === "exact") && vDevType === "switchMultilevel") {
 				var level = command === "exact" ? parseInt(args.level, 10) : (command === "on" ? 99 : 0);
-				self.publish(this.get("metrics:mqttTopic") + "/on", parseInt((maxLevel * level) / 99));
+				self.publish(this.get("metrics:mqttTopic") + "/on", parseInt((dev.maxLevel * level) / 99));
 			}
 		},
 		moduleId: this.id
