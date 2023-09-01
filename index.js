@@ -57,19 +57,10 @@ WBMQTTImport.prototype.init = function (config) {
 		self.config.mqttDevices = {};
 	}
 
-	// Array of all known devices
-	if (!self.config.allKnownDevicesArray) {
-		self.config.allKnownDevicesArray = [];
-	}
-
-	// If enabledMQTTDevicesArray doesn't contain an vDevId, then remove it from the mqttDevices
-	Object.keys(self.config.mqttDevices).forEach(function(vDevId) {
-		if (self.config.enabledMQTTDevicesArray.indexOf(vDevId) === -1) {
-			delete self.config.mqttDevices[vDevId];
-		}
-		// Create vDevs at start
-		else {
-			self.createVDev(self.config.mqttDevices[vDevId]);
+	self.config.enabledMQTTDevicesArray.forEach(function(vDevId) {
+		var dev = self.config.mqttDevices[vDevId];
+		if (dev) {
+			self.createVDev(dev);
 		}
 	});
 	self.saveConfig();
@@ -244,10 +235,8 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 
 				self.updateNamespace();
 
-				// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
-				if (self.config.allKnownDevicesArray.indexOf(deviceId) === -1) {
-					self.config.allKnownDevicesArray.push(deviceId);
-					
+				// If new device, save it and add to enabledMQTTDevicesArray
+				if (!self.config.mqttDevices[deviceId]) {
 					// Add device to list in config
 					self.config.mqttDevices[deviceId] = {
 						deviceId: deviceId,
