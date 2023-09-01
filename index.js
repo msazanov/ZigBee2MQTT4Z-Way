@@ -77,7 +77,9 @@ WBMQTTImport.prototype.init = function (config) {
 	// Array of all mqtt devices placed in namespaces to show in web ui
 	self.devicesList = [];
 
-	self.topicTree = {};
+	self.topicTree = {
+		devices: {}
+	};
 
 	// Defaults
 	self.reconnectCount = 0;
@@ -198,76 +200,78 @@ WBMQTTImport.prototype.onMessage = function (topic, payload) {
 	var path = topic.split("/");
 	path.shift(); // Remove first empty element
 
-	if (!self.topicTree[path[0]]) {
-		self.topicTree[path[0]] = {}
-	}
-
 	var deviceId = (this.getName() + "_" + this.id + "_" + path[1] + "_" + path[2] + "_" + path[3]).replace(/__/g, "_").replace(/ /g, "_");
-	var pathObject = self.topicTree[path[0]]
-	for (var i = 1; i < path.length; i++) {
-		// Last element add payload
-		if (i == path.length - 1) {
-			// Update payload
-			pathObject[path[i]] = {value: payload};
-			self.updateVDev(deviceId, payload);
-			// If topic with meta, create vDev
-			if (path[0] == "devices" && path[2] == "controls" && path[i] == "meta" && path[1].substr(0, 4) != "zway") {
+	
+	var pathObject = self.topicTree;
+	
+	// skip topics other than:
+	// - /devices/.../controls/...
+	// - /devices/.../controls/.../meta
+	if (!(path[0] === "devices" && path[2] == "controls" && (path.length === 4 || (path.length === 5 && path[4] == "meta")))) return;
+	
+	// Save in the tree
+	if (!self.topicTree["devices"][path[1]]) {
+		self.topicTree["devices"][path[1]] = {
+			controls: {}
+		}
+	}
+	
+	if (path.length === 4) {
+		// topic with value, update vDev
+		self.topicTree["devices"][path[1]]["controls"][path[3]] = {
+			value: payload
+		};
+		self.updateVDev(deviceId, payload);
+	} else {
+		// topic with meta, create vDev
+		if (path[1].substr(0, 4) != "zway") { // skip devices from WBMQTTNative
+			// Add subsystem section
+			var subSystemID = (this.getName() + "_" + this.id + "_" + path[1]).replace(/__/g, "_") + "__";
+			if (!(self.containsDevice(subSystemID, self.devicesList))) {
+				self.devicesList.push({deviceId: subSystemID, deviceName: path[1]})
+			}
 
-				// Add subsystem section
-				var subSystemID = (this.getName() + "_" + this.id + "_" + path[1]).replace(/__/g, "_") + "__";
-				if (!(self.containsDevice(subSystemID, self.devicesList))) {
-					self.devicesList.push({deviceId: subSystemID, deviceName: path[1]})
-				}
+			var meta = JSON.parse(payload);
+			var maxLevel = meta.max ? meta.max : undefined;
 
-				var meta = JSON.parse(payload);
-				var maxLevel = meta.max ? meta.max : 0;
+			deviceId = deviceId.replace("_meta", "");
+			topic = topic.replace("/meta", ""); // remove meta from topic path
 
-				deviceId = deviceId.replace("_meta", "");
-				topic = topic.replace("/meta", ""); // remove meta from topic path
+			// Add {ID:NAME} to array of all mqtt devices
+			if (!(self.containsDevice(deviceId, self.devicesList))) {
+			
+				self.devicesList.push({deviceId: deviceId, deviceName: path[3]});
 
-				// Add {ID:NAME} to array of all mqtt devices
-				if (!(self.containsDevice(deviceId, self.devicesList))) {
-				
-					self.devicesList.push({deviceId: deviceId, deviceName: path[3]});
+				self.updateNamespace();
 
-					self.updateNamespace();
-
-					// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
-					if (self.config.allKnownDevicesArray.indexOf(deviceId) === -1) {
-						self.config.allKnownDevicesArray.push(deviceId);
-						
-						// Add device to list in config
-						self.config.mqttDevices[deviceId] = {
-							deviceId: deviceId,
-							name: path[1] + "/" + path[3],
-							type: meta.type,
-							readonly: meta.readonly,
-							level: self.topicTree[path[0]][path[1]][path[2]][path[3]].value,
-							maxLevel: maxLevel,
-							topic: topic,
-						};
-						
-						if (self.createVDev(self.config.mqttDevices[deviceId])) {
-							// set the checkbox only if the device was created (meas it is supported)
-							self.config.enabledMQTTDevicesArray.push(deviceId);
-						}
-						
-						self.saveConfig();
-					} else {
-						// Generate vDev if device in enabledMQTTDevicesArray
-						if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) !== -1) {
-							self.createVDev(self.config.mqttDevices[deviceId]);
-						}
+				// If new device, add to allKnownDevicesArray and enabledMQTTDevicesArray
+				if (self.config.allKnownDevicesArray.indexOf(deviceId) === -1) {
+					self.config.allKnownDevicesArray.push(deviceId);
+					
+					// Add device to list in config
+					self.config.mqttDevices[deviceId] = {
+						deviceId: deviceId,
+						name: path[1] + "/" + path[3],
+						type: meta.type,
+						readonly: meta.readonly,
+						level: self.topicTree[path[0]][path[1]][path[2]][path[3]].value,
+						maxLevel: maxLevel,
+						topic: topic,
+					};
+					
+					if (self.createVDev(self.config.mqttDevices[deviceId])) {
+						// set the checkbox only if the device was created (meas it is supported)
+						self.config.enabledMQTTDevicesArray.push(deviceId);
+					}
+					
+					self.saveConfig();
+				} else {
+					// Generate vDev if device in enabledMQTTDevicesArray
+					if (self.config.enabledMQTTDevicesArray.indexOf(deviceId) !== -1) {
+						self.createVDev(self.config.mqttDevices[deviceId]);
 					}
 				}
 			}
-		}
-		else {
-			// Create next object in path
-			if (!pathObject[path[i]]) {
-				pathObject[path[i]] = {}
-			}
-			pathObject = pathObject[path[i]]
 		}
 	}
 };
