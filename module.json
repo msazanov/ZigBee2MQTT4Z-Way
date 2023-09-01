@@ -1,6 +1,6 @@
 {
-	"author": "Yurkin Vitaliy",
-	"category": "logging",
+	"author": "Z-Wave.Me",
+	"category": "support_external_dev",
 	"defaults": {
 		"title": "__m_title__",
 		"description": "__m_descr__",
