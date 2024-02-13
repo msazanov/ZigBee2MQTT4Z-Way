@@ -1,9 +1,9 @@
 # WBMQTTImport
 
 
-# Wiren Board MQTT connector for Z-Way
+# ZigBee2MQTT connector for Z-Way
 
-Subscribe to the status of devices of Wiren Board 7 internal MQTT and creates devices in Z-Way for each topic.
+Subscribe to the status of devices of ZigBee2MQTT internal MQTT and creates devices in Z-Way for each topic.
 
 # Installation
 
@@ -12,11 +12,11 @@ Subscribe to the status of devices of Wiren Board 7 internal MQTT and creates de
         # Execute on Wiren Board
         apt install git
         cd /opt/z-way-server/automation/userModules
-        git clone https://github.com/Z-Wave-Me/WBMQTTImport.git WBMQTTImport
+        git clone https://github.com/msazanov/WBMQTTImport.git ZigBee2MQTT4Z-Way
 ```
 1. To update to last version in this repo:
 ```shell
-        cd /opt/z-way-server/automation/userModules/WBMQTTImport
+        cd /opt/z-way-server/automation/userModules/ZigBee2MQTT4Z-Way
         git pull
 ```
 # Usage
